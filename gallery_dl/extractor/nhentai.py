@@ -24,15 +24,27 @@ class NHentaiExtractor(Extractor):
         """Transform an nhentai API response into compatible metadata"""
         title_en = ginfo["title"].get("english", "")
         title_ja = ginfo["title"].get("japanese", "")
+
+        tags = []
+        for t in ginfo["tags"]:
+            t1 = t.get("name", "")
+            if not t1 == "":
+                tags.append(t1)
+                # tags += "," + t1.strip().lower()
+
         return {
             "gallery_id": ginfo["id"],
+            "manga_id": ginfo["id"],
             "upload_date": ginfo["upload_date"],
             "media_id": ginfo["media_id"],
             "scanlator": ginfo["scanlator"],
             "count": ginfo["num_pages"],
             "title": title_en or title_ja,
+            "manga": title_en or title_ja,
             "title_en": title_en,
             "title_ja": title_ja,
+            "tags": tags,
+            "rating": "e"
         }
 
 
@@ -40,8 +52,8 @@ class NhentaiGalleryExtractor(NHentaiExtractor):
     """Extractor for image galleries from nhentai.net"""
     subcategory = "gallery"
     directory_fmt = ["{category}", "{gallery_id} {title}"]
-    filename_fmt = "{category}_{gallery_id}_{num:>03}.{extension}"
-    archive_fmt = "{gallery_id}_{num}"
+    filename_fmt = "{category}_{gallery_id}_{page:>03}.{extension}"
+    archive_fmt = "{gallery_id}_{page}"
     pattern = [r"(?:https?://)?nhentai\.net/g/(\d+)"]
     test = [("https://nhentai.net/g/147850/", {
         "url": "5179dbf0f96af44005a0ff705a0ad64ac26547d0",
@@ -60,12 +72,12 @@ class NhentaiGalleryExtractor(NHentaiExtractor):
         extdict = {"j": "jpg", "p": "png", "g": "gif"}
         yield Message.Version, 1
         yield Message.Directory, data
-        for data["num"], image in enumerate(ginfo["images"]["pages"], 1):
+        for data["page"], image in enumerate(ginfo["images"]["pages"], 1):
             ext = extdict.get(image["t"], "jpg")
             data["width"] = image["w"]
             data["height"] = image["h"]
             data["extension"] = ext
-            yield Message.Url, urlfmt.format(data["num"], ext), data
+            yield Message.Url, urlfmt.format(data["page"], ext), data
 
     def get_gallery_info(self, gallery_id):
         """Extract and return info about a gallery by ID"""

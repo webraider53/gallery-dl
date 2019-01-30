@@ -21,9 +21,9 @@ class HbrowseExtractor():
     def parse_page(self, page, data):
         """Parse metadata on 'page' and add it to 'data'"""
         data, pos = text.extract_all(page, (
-            ('manga' , '<td class="listLong">', '</td>'),
+            ('manga', '<td class="listLong">', '</td>'),
             ('artist', '<td class="listLong">', '</td>'),
-            ('total' , '<td class="listLong">', ' '),
+            ('total', '<td class="listLong">', ' '),
             ('origin', '<td class="listLong">', '</td>'),
         ), values=data)
 

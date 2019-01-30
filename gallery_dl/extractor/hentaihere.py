@@ -8,13 +8,78 @@
 
 """Extract hentai-manga from https://hentaihere.com/"""
 
-from .common import ChapterExtractor, MangaExtractor
+from .common import ChapterExtractor, MangaExtractor, Extractor
 from .. import text
 import re
 import json
 
 
-class HentaihereMangaExtractor(MangaExtractor):
+class HentaihereExtractor(Extractor):
+    """Base class for hbrowse extractors"""
+    category = "hentaihere"
+    root = "https://hentaihere.com"
+
+    @staticmethod
+    def parse_page(page, data):
+        """Parse metadata on 'page' and add it to 'data'"""
+        minfo, pos = text.extract(page, '<div id="info">', '</div>')
+
+        # data = {}
+        text.extract_all(page, (
+            ('-', '<div class="fieldname">', '</div>'),  # parody
+            ('-', '<div class="fieldname">', '</div>'),  # ranking
+            ('-', '<div class="fieldname">', '</div>'),  # status
+            ('-', '<div class="fieldname">', '</div>'),  # release_year
+            ('-', '<div class="fieldname">', '</div>'),  # rating
+            ('-', '<div class="fieldname">', '</div>'),  # views
+            ('circle', '<div class="fieldname">', '</div>'),
+            ('artist', '<div class="fieldname">', '</div>'),
+            ('category', '<div class="fieldname">', '</div>'),
+            ('content', '<div class="fieldname">', '</div>'),  # tags
+            ('character', '<div class="fieldname">', '</div>'),
+            ('language', '<div class="fieldname">', '</div>'),
+        ), values=data, pos=pos)
+
+        data.pop("-", None)
+        # data["-"] = text.remove_html(data["-"])
+
+        if "tags" not in data:
+            data["tags"] = []
+
+        for i in ["artist", "content", "category", "circle", "character", "language"]:
+            # print(i, ":", data[i])
+            for t in text.extract_iter(data[i], 'class="tagbutton">', "</a>"):
+                # print(i, ":", t)
+                t = text.remove_html(t).strip().lower()
+                if t == "-":
+                    continue
+                # print(t)
+                data["tags"].append(t)
+
+        for key in data:
+            if data[key] == "-":
+                data[key] = ""
+
+        # data["tags"] = " ".join([data["tags"], data["category"], data["circle"], data["character"]])
+        data.pop("content", None)
+
+        # data["circle"] = text.remove_html(data["circle"]).split(':', 1)[1].strip().lower()
+        data.pop("circle", None)
+        # data["artist"] = text.remove_html(data["artist"]).split(':', 1)[1].strip().lower()
+        data.pop("artist", None)
+        # data["category"] = text.remove_html(data["category"]).split(':', 1)[1].strip().lower()
+        data.pop("category", None)
+        # data["tags"] = text.remove_html(data["tags"]).split(':', 1)[1].strip().lower()
+        # data["character"] = text.remove_html(data["character"]).split(':', 1)[1].strip().lower()
+        data.pop("character", None)
+        data["language"] = text.remove_html(data["language"]).split(':', 1)[1].strip().lower()
+
+        data["rating"] = "e"
+
+        return data
+
+
+class HentaihereMangaExtractor(HentaihereExtractor, MangaExtractor):
     """Extractor for hmanga from hentaihere.com"""
     category = "hentaihere"
     pattern = [r"(?:https?://)?(?:www\.)?(hentaihere\.com/m/S\d+)/?$"]
@@ -32,12 +97,9 @@ class HentaihereMangaExtractor(MangaExtractor):
 
     def chapters(self, page):
         results = []
-        manga_id = text.parse_int(
-            self.url.rstrip("/").rpartition("/")[2][1:])
-        manga, pos = text.extract(
-            page, '<span itemprop="name">', '</span>')
-        mtype, pos = text.extract(
-            page, '<span class="mngType text-danger">[', ']</span>', pos)
+        manga_id = text.parse_int(self.url.rstrip("/").rpartition("/")[2][1:])
+        manga, pos = text.extract(page, '<span itemprop="name">', '</span>')
+        mtype, pos = text.extract(page, '<span class="mngType text-danger">[', ']</span>', pos)
 
         while True:
             marker, pos = text.extract(
@@ -48,15 +110,15 @@ class HentaihereMangaExtractor(MangaExtractor):
             chapter, pos = text.extract(page, 'title="Tagged: -">\n', '<', pos)
             chapter_id, pos = text.extract(page, '/C', '"', pos)
             chapter, _, title = text.unescape(chapter).strip().partition(" - ")
-            results.append((url, {
+            results.append((url, self.parse_page(page, {
                 "manga_id": manga_id, "manga": manga, "type": mtype,
                 "chapter_id": text.parse_int(chapter_id),
                 "chapter": text.parse_int(chapter),
                 "title": title, "lang": "en", "language": "English",
-            }))
+            })))
 
 
-class HentaihereChapterExtractor(ChapterExtractor):
+class HentaihereChapterExtractor(HentaihereExtractor, ChapterExtractor):
     """Extractor for a single manga chapter from hentaihere.com"""
     category = "hentaihere"
     archive_fmt = "{chapter_id}_{page}"

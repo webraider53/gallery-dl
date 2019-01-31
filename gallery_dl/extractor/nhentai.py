@@ -29,7 +29,7 @@ class NHentaiExtractor(Extractor):
         for t in ginfo["tags"]:
             t1 = t.get("name", "")
             if not t1 == "":
-                tags.append(t1)
+                tags.append(t1.strip().lower())
                 # tags += "," + t1.strip().lower()
 
         return {

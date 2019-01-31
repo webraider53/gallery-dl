@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
-# Copyright 2016-2018 Mike Fährmann
+# Copyright 2016-2019 Mike Fährmann
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
 # published by the Free Software Foundation.
 
-"""Extract images from http://seiga.nicovideo.jp"""
+"""Extract images from http://seiga.nicovideo.jp/"""
 
 from .common import Extractor, Message
 from .. import text, util, exception
@@ -51,14 +51,14 @@ class SeigaExtractor(Extractor):
         """Login and set necessary cookies"""
         if not self._check_cookies(("user_session",)):
             username, password = self._get_auth_info()
-            self.session.cookies = self._login_impl(username, password)
+            self._update_cookies(self._login_impl(username, password))
 
     @cache(maxage=7*24*60*60, keyarg=1)
     def _login_impl(self, username, password):
-        """Actual login implementation"""
         self.log.info("Logging in as %s", username)
         url = "https://account.nicovideo.jp/api/v1/login"
         data = {"mail_tel": username, "password": password}
+
         self.request(url, method="POST", data=data)
         if "user_session" not in self.session.cookies:
             raise exception.AuthenticationError()

@@ -116,6 +116,20 @@ class Extractor():
             "user-agent", ("Mozilla/5.0 (X11; Linux x86_64; rv:62.0) "
                            "Gecko/20100101 Firefox/62.0"))
 
+    def _set_proxies(self):
+        """Update the session's proxy map"""
+        proxies = self.config("proxy")
+        if proxies:
+            if isinstance(proxies, str):
+                proxies = {"http": proxies, "https": proxies}
+            if isinstance(proxies, dict):
+                for scheme, proxy in proxies.items():
+                    if "://" not in proxy:
+                        proxies[scheme] = "http://" + proxy.lstrip("/")
+                self.session.proxies = proxies
+            else:
+                self.log.warning("invalid proxy specifier: %s", proxies)
+
     def _set_cookies(self):
         """Populate the session's cookiejar"""
         cookies = self.config("cookies")
@@ -132,30 +146,33 @@ class Extractor():
                 except OSError as exc:
                     self.log.warning("cookies: %s", exc)
 
-    def _set_proxies(self):
-        """Update the session's proxy map"""
-        proxies = self.config("proxy")
-        if proxies:
-            if isinstance(proxies, str):
-                proxies = {"http": proxies, "https": proxies}
-            if isinstance(proxies, dict):
-                for scheme, proxy in proxies.items():
-                    if "://" not in proxy:
-                        proxies[scheme] = "http://" + proxy.lstrip("/")
-                self.session.proxies = proxies
-            else:
-                self.log.warning("invalid proxy specifier: %s", proxies)
-
-    def _check_cookies(self, cookienames, domain=None):
+    def _check_cookies(self, cookienames, *, domain=""):
         """Check if all 'cookienames' are in the session's cookiejar"""
-        if not domain and self.cookiedomain:
+        if not domain:
             domain = self.cookiedomain
-        for name in cookienames:
-            try:
+        try:
+            for name in cookienames:
                 self.session.cookies._find(name, domain)
-            except KeyError:
-                return False
+        except KeyError:
+            return False
         return True
+
+    def _update_cookies(self, cookies, *, domain=""):
+        """Update the session's cookiejar with 'cookies'"""
+        if isinstance(cookies, dict):
+            if not domain:
+                domain = self.cookiedomain
+            setcookie = self.session.cookies.set
+            for name, value in cookies.items():
+                setcookie(name, value, domain=domain)
+        else:
+            try:
+                cookies = iter(cookies)
+            except TypeError:
+                cookies = (cookies,)
+            setcookie = self.session.cookies.set_cookie
+            for cookie in cookies:
+                setcookie(cookie)
 
 
 class AsynchronousExtractor(Extractor):
@@ -206,6 +223,7 @@ class ChapterExtractor(Extractor):
         self.url = url
 
     def items(self):
+        self.login()
         page = self.request(self.url).text
         data = self.get_metadata(page)
         imgs = self.get_images(page)
@@ -213,7 +231,7 @@ class ChapterExtractor(Extractor):
         if "count" in data:
             images = zip(
                 range(1, data["count"]+1),
-                imgs
+                imgs,
             )
         else:
             try:
@@ -228,6 +246,9 @@ class ChapterExtractor(Extractor):
             if imgdata:
                 data.update(imgdata)
             yield Message.Url, url, text.nameext_from_url(url, data)
+
+    def login(self):
+        """Login and set necessary cookies"""
 
     def get_metadata(self, page):
         """Return a dict with general metadata"""

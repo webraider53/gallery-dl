@@ -47,13 +47,10 @@ class HentaihereExtractor(Extractor):
             data["tags"] = []
 
         for i in ["artist", "content", "category", "circle", "character", "language"]:
-            # print(i, ":", data[i])
             for t in text.extract_iter(data[i], 'class="tagbutton">', "</a>"):
-                # print(i, ":", t)
                 t = text.remove_html(t).strip().lower()
                 if t == "-":
                     continue
-                # print(t)
                 data["tags"].append(t)
 
         for key in data:
@@ -149,6 +146,7 @@ class HentaihereChapterExtractor(HentaihereExtractor, ChapterExtractor):
             "author": match.group(4),
             "lang": "en",
             "language": "English",
+            "category": self.category
         }
 
     @staticmethod

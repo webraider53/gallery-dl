@@ -77,3 +77,19 @@ class FilterError(GalleryDLException):
 
 class StopExtraction(GalleryDLException):
     """Extraction should stop"""
+
+
+class UploadRetry(GalleryDLException):
+    """Upload attempt failed and should be retried"""
+
+
+class UploadComplete(GalleryDLException):
+    """Output file of attempted upload is already complete"""
+
+
+class UploadFail(GalleryDLException):
+    """Upload attempt failed and should be retried"""
+
+
+class PostprocessorError(GalleryDLException):
+    """Error in prostprocessor"""

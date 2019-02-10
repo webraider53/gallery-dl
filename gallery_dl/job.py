@@ -19,6 +19,7 @@ from .extractor.message import Message
 class Job():
     """Base class for Job-types"""
     ulog = None
+    kwds = {}
 
     def __init__(self, url, parent=None):
         self.url = url
@@ -79,6 +80,10 @@ class Job():
             log.error("Unable to download data:  %s: %s",
                       exc.__class__.__name__, exc)
             log.debug("", exc_info=True)
+        except exception.UploadFail as exc:
+            log.error("Unable to upload data:  %s: %s",
+                      exc.__class__.__name__, exc)
+            log.debug("", exc_info=True)
         except Exception as exc:
             log.error(("An unexpected error occurred: %s - %s. "
                        "Please run gallery-dl again with the --verbose flag, "
@@ -120,6 +125,7 @@ class Job():
 
     def handle_url(self, url, keywords):
         """Handle Message.Url"""
+        self.kwds.update(keywords)
 
     def handle_urllist(self, urls, keywords):
         """Handle Message.Urllist"""
@@ -127,9 +133,11 @@ class Job():
 
     def handle_directory(self, keywords):
         """Handle Message.Directory"""
+        self.kwds.update(keywords)
 
     def handle_queue(self, url, keywords):
         """Handle Message.Queue"""
+        self.kwds.update(keywords)
 
     def handle_finalize(self):
         """Handle job finalization"""
@@ -185,6 +193,13 @@ class DownloadJob(Job):
 
     def handle_url(self, url, keywords, fallback=None):
         """Download the resource specified in 'url'"""
+        super().handle_url(url=url, keywords=keywords)
+        keywords = self.kwds
+        # self.log.debug("DownloadJob:handle_url(url=%(url)s, keywords=%(keywords)s, fallback=%(fallback)s)" % {
+        #    "url": url,
+        #    "keywords": keywords,
+        #    "fallback": fallback
+        # })
         # prepare download
         self.pathfmt.set_keywords(keywords)
 
@@ -194,9 +209,11 @@ class DownloadJob(Job):
 
         if self.pathfmt.exists(self.archive):
             self.handle_skip()
+            self.handle_postprocessors()
             return
 
         if self.sleep:
+            self.log.debug("DownloadJob:Sleep a bit: %s", self.sleep)
             time.sleep(self.sleep)
 
         # download from URL
@@ -209,25 +226,28 @@ class DownloadJob(Job):
                     break
             else:
                 # download failed
-                self.log.error(
-                    "Failed to download %s", self.pathfmt.filename or url)
+                self.log.error("Failed to download %s", self.pathfmt.filename or url)
                 return
 
         if not self.pathfmt.temppath:
             self.handle_skip()
             return
 
+        # download succeeded
+        self.pathfmt.finalize()
+        self.out.success(self.pathfmt.path, 0)
+
+        self.handle_postprocessors()
+
+        if self.archive:
+            self.archive.add(keywords)
+        self._skipcnt = 0
+
+    def handle_postprocessors(self):
         # run post processors
         if self.postprocessors:
             for pp in self.postprocessors:
                 pp.run(self.pathfmt)
-
-        # download succeeded
-        self.pathfmt.finalize()
-        self.out.success(self.pathfmt.path, 0)
-        if self.archive:
-            self.archive.add(keywords)
-        self._skipcnt = 0
 
     def handle_urllist(self, urls, keywords):
         """Download the resource specified in 'url'"""
@@ -237,12 +257,16 @@ class DownloadJob(Job):
 
     def handle_directory(self, keywords):
         """Set and create the target directory for downloads"""
+        super().handle_directory(keywords=keywords)
+        keywords = self.kwds
         if not self.pathfmt:
             self.initialize(keywords)
         else:
             self.pathfmt.set_directory(keywords)
 
     def handle_queue(self, url, keywords):
+        super().handle_queue(url=url, keywords=keywords)
+        keywords = self.kwds
         try:
             self.__class__(url, self).run()
         except exception.NoExtractorError:
@@ -359,17 +383,23 @@ class KeywordJob(Job):
     """Print available keywords"""
 
     def handle_url(self, url, keywords):
+        super().handle_url(url=url, keywords=keywords)
+        keywords = self.kwds
         print("\nKeywords for filenames and --filter:")
         print("------------------------------------")
         self.print_keywords(keywords)
         raise exception.StopExtraction()
 
     def handle_directory(self, keywords):
+        super().handle_directory(keywords=keywords)
+        keywords = self.kwds
         print("Keywords for directory names:")
         print("-----------------------------")
         self.print_keywords(keywords)
 
     def handle_queue(self, url, keywords):
+        super().handle_queue(url=url, keywords=keywords)
+        keywords = self.kwds
         if not keywords:
             self.extractor.log.info(
                 "This extractor delegates work to other extractors "
